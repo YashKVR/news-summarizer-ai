@@ -1,0 +1,1 @@
+This is a news summarizing app built using openai and streamlit
