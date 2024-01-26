@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 import requests
 import json
+import streamlit as st
 
 load_dotenv()
 # openai.api_key = os.environ.get("OPENAI_API_KEY")
@@ -63,13 +64,13 @@ def get_news(topic):
         print("Error occured during API Request", e)
 
 
-def main():
-    news = get_news("bitcoin")
-    print(news[0])
+
 
 class AssistantManager:
-    thread_id = None
-    assistant_id = None
+    # thread_id = None
+    # assistant_id = None
+    thread_id = "thread_BL1DMEUguQo6viLHtajM9F3k"
+    assistant_id = "asst_UTkRtNXrv0LEJGOTcSb99uDi"
 
     def __init__(self, model:str):
         self.client = client
@@ -172,7 +173,7 @@ class AssistantManager:
     def get_summary(self):
         return self.summary        
 
-    def wait_for_completed(self):
+    def wait_for_completion(self):
         if self.thread and self.run:
             while True:
                 time.sleep(5)
@@ -192,11 +193,72 @@ class AssistantManager:
                     )
     # Run the steps
     def run_steps(self):
-        run_steps = self.client.beta.threads.runs.stpss.list(
+        run_steps = self.client.beta.threads.runs.steps.list(
             thread_id = self.thread.id,
             run_id = self.run.id
         )
-        print(f"Run Steps ==> {run_steps}")                           
+        print(f"Run Steps ==> {run_steps}")
+        return run_steps.data                           
+
+def main():
+    # news = get_news("bitcoin")
+    # print(news[0])
+
+    manager = AssistantManager(model)
+
+    #streamlit intreface
+    st.title("News Summarizer")
+
+    with st.form(key="user_input_form"):
+        instructions = st.text_input("Enter Topic")
+        submit_button = st.form_submit_button(label="Run Assistant")
+
+        if submit_button:
+            manager.create_assistant(
+                name="News Summarizer",
+                instructions="You are a personal article summarizer Assistant who knows how to take a list of article's titles and descriptions and then write a short summary of all the news articles",
+                tools= [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_news",
+                            "description": "Get the list of articles/news for the given topic",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "topic": {
+                                        "type": "string",
+                                        "description": "The topic for the news, e.g. bitcoin",
+                                    }
+                                },
+                                "required": ["topic"],
+                            },
+                        },
+                    }
+                ],
+            )
+            manager.create_thread()
+
+            #Add the message and run the assistant
+            manager.add_message_to_thread(
+                role="user",
+                content= f"summarize the news on this topic {instructions}"
+            )
+
+            manager.run_assistant(instructions="Summarize the news")
+
+            # Wait for completion and process the messages
+            manager.wait_for_completion()
+
+            summary = manager.get_summary()
+
+            st.write(summary)
+
+            st.text("Rub Steps: ")
+            st.code(manager.run_steps(), line_numbers=True)
+
+
+
 
 if __name__ == "__main__":
     main()
